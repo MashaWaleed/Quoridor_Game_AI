@@ -1,0 +1,102 @@
+Term Project: Quoridor Game Implementation
+Project Overview
+In this project, you will develop a complete implementation of the abstract strategy board game
+Quoridor. This project will test your ability to implement game mechanics, develop a graphical
+user interface, create AI opponents of varying difficulty, and document your work professionally.
+Game Description: Quoridor
+Quoridor is a strategy board game that was invented by Mirko Marchesi and first released in
+1997. The game has won several awards including the Mensa Mind Game award.
+Game Rules
+1. Game Board: The game is played on a 9×9 square board.
+2. Players: 2-4 players can play, but you'll implement the 2-player version.
+3. Game Pieces:
+o Each player has a pawn that begins at the center of their respective base line
+o Each player has 10 walls (5 walls in a 4-player game)
+4. Objective: Be the first player to move your pawn to any square on the opposite side of
+the board.
+5. Movement:
+o On each turn, a player must either move their pawn or place a wall
+o Pawns move one square orthogonally (not diagonally)
+o Players cannot move through walls or opponent pawns
+o If a player's pawn is adjacent to an opponent's pawn, the player can jump over
+the opponent's pawn (if there's no wall blocking)
+o If a jump is blocked by a wall, the player can move diagonally around the
+opponent's pawn
+6. Wall Placement:
+o Walls are two squares long and are placed on the edges between squares
+o Walls cannot overlap or cross other walls
+o Walls cannot be placed to completely block a player's path to the goal (there
+must always be a valid path to the goal for each player)
+o Once placed, walls cannot be moved
+Project Requirements
+Core Requirements
+1. Game Implementation:
+o Implement the complete ruleset of Quoridor for 2 players
+o Create a graphical user interface (GUI) for the game
+o Include game state visualization (board, pawns, walls, whose turn it is)
+o Implement valid move highlighting and error prevention for illegal moves
+o Include a path-finding algorithm to ensure wall placements don't completely
+block a player
+2. Game Modes:
+o Human vs. Human (local play on the same computer)
+o Human vs. Computer (with AI opponent)
+3. User Interface:
+o Clear visualization of the game board, pawns, and walls
+o Intuitive controls for moving pawns and placing walls
+o Turn indicator
+o Wall count display for each player
+o Game state messages (whose turn, invalid moves, winner announcement)
+o Game reset functionality
+4. Documentation:
+o GitHub repository with complete source code
+o README file with:
+▪ Game description
+▪ Screenshots of the game in action
+▪ Installation and running instructions
+▪ Controls explanation
+▪ Link to demo video
+o Project report (PDF) including:
+▪ Design decisions and architecture
+▪ Implementation challenges and solutions
+▪ AI algorithm explanation
+▪ Assumptions made during development
+▪ References and resources used
+5. Demo Video:
+o 3-5 minute video demonstrating:
+▪ Game setup and UI overview
+▪ Human vs. Human gameplay
+▪ Human vs. Computer gameplay
+Bonus Features (for additional marks)
+1. AI Difficulty Levels:
+o Implement multiple AI difficulty levels (e.g., Easy, Medium, Hard)
+o Document the algorithms used for each difficulty level
+2. Additional Features “Adds +10% of the total project total” (choose one to
+implement):
+o Game state saving/loading
+o Undo/redo functionality
+o 4-player mode
+o Custom board sizes
+Technical Requirements
+1. Programming Language:
+o You may use any programming language and framework that supports GUI
+development
+o Popular choices include Python (with Pygame, Tkinter, or PyQt), Java (with JavaFX
+or Swing), JavaScript (with HTML5 Canvas for Web), or C++ (with SFML or Qt)
+2. Version Control:
+o Create a public GitHub repository for your project
+o Make regular, meaningful commits showing your development process
+o Include a .gitignore file appropriate for your language/framework
+3. Code Quality:
+o Well-organized, readable code with appropriate comments
+o Separation of concerns (game logic, UI, AI)
+o Avoid code duplication and use appropriate design patterns
+Deliverables and Deadline
+1. GitHub Repository Link:
+o Submit the URL to your public GitHub repository
+o The repository must include all source code, assets, and documentation
+2. Project Report:
+o Submit a PDF report (6-10 pages) covering the topics outlined above
+o Include the link to your demo video in the report
+3. Demo Video:
+o Upload to YouTube, Google Drive, or any similar platform
+o Include the link in both your report and README.md
