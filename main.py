@@ -11,6 +11,7 @@ from game.game_state import GameState
 from ui.renderer import Renderer
 from ui.menu import Menu
 from ui.colors import Colors
+from ui.dialogs import show_input_dialog, show_file_select_dialog
 from ai.easy_ai import EasyAI
 from ai.medium_ai import MediumAI
 from ai.hard_ai import HardAI
@@ -165,24 +166,31 @@ class QuoridorGame:
                             self.set_message("No walls remaining!", 120)
                 
                 elif event.key == pygame.K_s:
-                    # Save game
+                    # Save game with custom name
                     if not self.game_state.game_over:
-                        if save_game(self.game_state):
-                            self.set_message("Game saved!", 120)
-                        else:
-                            self.set_message("Save failed!", 120)
+                        filename = show_input_dialog(self.screen, "Save Game", "Enter save name:", "my_game")
+                        if filename:
+                            # Add .json extension if not present
+                            if not filename.endswith('.json'):
+                                filename = filename + '.json'
+                            if save_game(self.game_state, filename):
+                                self.set_message(f"Game saved as {filename}!", 120)
+                            else:
+                                self.set_message("Save failed!", 120)
                 
                 elif event.key == pygame.K_l:
-                    # Load game
-                    loaded_state = load_game()
-                    if loaded_state:
-                        self.game_state = loaded_state
-                        self.mode = 'pvp'  # Loaded games default to PvP
-                        self.ai = None
-                        self.in_menu = False
-                        self.set_message("Game loaded!", 120)
-                    else:
-                        self.set_message("Load failed!", 120)
+                    # Load game with file selection
+                    filename = show_file_select_dialog(self.screen, "Load Game")
+                    if filename:
+                        loaded_state = load_game(filename)
+                        if loaded_state:
+                            self.game_state = loaded_state
+                            self.mode = 'pvp'  # Loaded games default to PvP
+                            self.ai = None
+                            self.in_menu = False
+                            self.set_message("Game loaded!", 120)
+                        else:
+                            self.set_message("Load failed!", 120)
             
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if not self.game_state.game_over and not self.ai_thinking:
