@@ -199,8 +199,6 @@ quoridor-game/
 
 ## Credits
 
-Developed by [Your Name]
-
 Game designed by Mirko Marchesi (1997)
 
 ## License
