@@ -59,6 +59,7 @@ releases/
 *.aux
 *.log
 *.out
+DEMO_SCRIPTS.md
 
 # Text files except requirements.txt
 project_description.txt

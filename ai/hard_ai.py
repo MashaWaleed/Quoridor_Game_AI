@@ -1,9 +1,17 @@
 """
-Hard AI - Optimized Minimax with alpha-beta pruning and advanced heuristics.
-Based on Quoridor AI research: Glendenning thesis and academic papers.
+Hard AI - Based on proven Quoridor AI research.
+
+References:
+- Martijn van Steenbergen's SmartBrain (negamax depth 4)
+- Monte Carlo Tree Search for Quoridor (2018 paper)
+
+Key insight: The evaluation function should be SIMPLE:
+  score = opponent_path_length - my_path_length
+
+Wall placement should be SELECTIVE:
+  Only consider walls along players' shortest paths
 """
 
-import random
 from .base_ai import BaseAI
 from game.wall import Wall
 from game.board import Board
@@ -11,337 +19,330 @@ from game.board import Board
 
 class HardAI(BaseAI):
     """
-    Hard difficulty AI using minimax algorithm with alpha-beta pruning.
+    Hard AI using negamax with alpha-beta pruning.
     
-    Key optimizations:
-    - Depth 3 search with aggressive pruning
-    - Superior move ordering for better alpha-beta cuts
-    - Strategic wall candidate filtering (only best positions)
-    - Path-length-based evaluation (core Quoridor strategy)
-    - Win-detection bonuses for immediate victories
+    Based on SmartBrain 4 which uses:
+    - Negamax depth 4
+    - Simple path differential heuristic
+    - Strategic wall selection (only along shortest paths)
     """
     
     def __init__(self):
         super().__init__("hard")
-        self.max_depth = 3  # Increased depth for stronger play
+        self.max_depth = 4
+        self.ai_player_idx = 1
+        self.last_positions = []  # Track recent positions to avoid oscillation
     
     def get_move(self, game_state):
-        """
-        Get move using minimax algorithm with alpha-beta pruning.
+        """Get best move using negamax search."""
+        self.ai_player_idx = game_state.current_player_idx
         
-        Args:
-            game_state: Current GameState object
-            
-        Returns:
-            Tuple of ('move', position) or ('wall', Wall object)
-        """
-        best_move = self._minimax_decision(game_state)
-        return best_move if best_move else self._get_fallback_move(game_state)
+        best_move = self._negamax_root(game_state)
+        
+        if best_move is None:
+            best_move = self._get_fallback_move(game_state)
+        
+        return best_move
     
-    def _minimax_decision(self, game_state):
-        """
-        Use minimax to find best move with move ordering for efficiency.
+    def _negamax_root(self, game_state):
+        """Root-level negamax to find best move."""
+        ai_player = game_state.players[self.ai_player_idx]
+        opponent = game_state.players[1 - self.ai_player_idx]
         
-        Args:
-            game_state: Current GameState object
-            
-        Returns:
-            Best move tuple
-        """
-        ai_player, opponent = self._get_player_and_opponent(game_state)
+        # Get candidate moves
+        moves = self._get_moves(game_state, ai_player, opponent)
+        
+        if not moves:
+            return None
+        
         best_value = float('-inf')
-        best_move = None
-        
-        # Get all possible moves with ordering (better moves first for pruning)
-        possible_moves = self._get_ordered_moves(game_state, ai_player, opponent)
+        best_moves = []  # Track all moves with best value for randomization
         
         alpha = float('-inf')
         beta = float('inf')
         
-        # Evaluate each move
-        for move_type, move_data in possible_moves:
-            # Make move
+        for move_type, move_data in moves:
             old_state = self._save_state(game_state)
             self._apply_move(game_state, move_type, move_data)
             
-            # Evaluate with minimax
-            value = self._minimax(game_state, self.max_depth - 1, alpha, beta, False)
+            # Negamax: negate the value from opponent's perspective
+            value = -self._negamax(game_state, self.max_depth - 1, -beta, -alpha)
             
-            # Restore state
             self._restore_state(game_state, old_state)
             
             if value > best_value:
                 best_value = value
-                best_move = (move_type, move_data)
-                alpha = max(alpha, value)
-        
-        return best_move
-    
-    def _minimax(self, game_state, depth, alpha, beta, is_maximizing):
-        """
-        Minimax algorithm with alpha-beta pruning.
-        
-        Args:
-            game_state: Current GameState object
-            depth: Remaining depth
-            alpha: Alpha value for pruning
-            beta: Beta value for pruning
-            is_maximizing: True if maximizing player's turn
+                best_moves = [(move_type, move_data)]
+            elif value == best_value:
+                best_moves.append((move_type, move_data))
             
-        Returns:
-            Evaluation score
-        """
-        # Terminal state or depth limit
-        if depth == 0 or game_state.game_over:
-            return self._evaluate_state(game_state)
+            alpha = max(alpha, value)
         
-        current_player = game_state.get_current_player()
+        # Select best move - prefer moves toward goal, avoid oscillation
+        if not best_moves:
+            return None
+        
+        # Filter out moves that would return to recent positions
+        non_oscillating = []
+        for move_type, move_data in best_moves:
+            if move_type == 'move' and move_data in self.last_positions:
+                continue  # Skip recently visited positions
+            non_oscillating.append((move_type, move_data))
+        
+        # Use non-oscillating moves if available
+        candidates = non_oscillating if non_oscillating else best_moves
+        
+        # Among equal moves, prefer pawn moves over walls at game start
+        pawn_moves = [(t, d) for t, d in candidates if t == 'move']
+        if pawn_moves:
+            # Prefer move that makes most progress toward goal
+            best = min(pawn_moves, key=lambda m: game_state.board.get_shortest_path_length(
+                m[1], ai_player.goal_row
+            ))
+            # Track position
+            self.last_positions.append(best[1])
+            if len(self.last_positions) > 4:
+                self.last_positions.pop(0)
+            return best
+        
+        # Otherwise take first wall
+        return candidates[0]
+    
+    def _negamax(self, game_state, depth, alpha, beta):
+        """Negamax with alpha-beta pruning."""
+        # Terminal check
+        if game_state.game_over:
+            winner = game_state.winner
+            current = game_state.get_current_player()
+            return 10000 if winner == current else -10000
+        
+        if depth == 0:
+            return self._evaluate(game_state)
+        
+        current = game_state.get_current_player()
         opponent = game_state.get_opponent()
         
-        # Get ordered moves for better pruning
-        possible_moves = self._get_ordered_moves(game_state, current_player, opponent)
+        moves = self._get_moves(game_state, current, opponent)
         
-        if is_maximizing:
-            max_eval = float('-inf')
-            for move_type, move_data in possible_moves:
-                old_state = self._save_state(game_state)
-                self._apply_move(game_state, move_type, move_data)
-                
-                eval_score = self._minimax(game_state, depth - 1, alpha, beta, False)
-                
-                self._restore_state(game_state, old_state)
-                
-                max_eval = max(max_eval, eval_score)
-                alpha = max(alpha, eval_score)
-                
-                if beta <= alpha:
-                    break  # Beta cutoff
+        if not moves:
+            return self._evaluate(game_state)
+        
+        best_value = float('-inf')
+        
+        for move_type, move_data in moves:
+            old_state = self._save_state(game_state)
+            self._apply_move(game_state, move_type, move_data)
             
-            return max_eval
-        else:
-            min_eval = float('inf')
-            for move_type, move_data in possible_moves:
-                old_state = self._save_state(game_state)
-                self._apply_move(game_state, move_type, move_data)
-                
-                eval_score = self._minimax(game_state, depth - 1, alpha, beta, True)
-                
-                self._restore_state(game_state, old_state)
-                
-                min_eval = min(min_eval, eval_score)
-                beta = min(beta, eval_score)
-                
-                if beta <= alpha:
-                    break  # Alpha cutoff
+            value = -self._negamax(game_state, depth - 1, -beta, -alpha)
             
-            return min_eval
+            self._restore_state(game_state, old_state)
+            
+            best_value = max(best_value, value)
+            alpha = max(alpha, value)
+            
+            if alpha >= beta:
+                break  # Pruning
+        
+        return best_value
     
-    def _evaluate_state(self, game_state):
+    def _evaluate(self, game_state):
         """
-        Evaluate game state using Quoridor-specific heuristics.
+        Simple evaluation: opponent_path - my_path
         
-        Based on research, the most important metric is path length differential.
-        Secondary factors: wall advantage, positional control.
-        
-        Args:
-            game_state: Current GameState object
-            
-        Returns:
-            Evaluation score (positive favors AI, negative favors opponent)
+        This is the PROVEN heuristic from SmartBrain.
         """
-        # AI is ALWAYS player 1 (index 1) in PvC mode
-        ai_player = game_state.players[1]
-        opponent = game_state.players[0]
+        current = game_state.get_current_player()
+        opponent = game_state.get_opponent()
         
-        # Check win/loss (terminal states)
-        if game_state.game_over:
-            if game_state.winner == ai_player:
-                return 100000
-            else:
-                return -100000
-        
-        # Check if AI can win next move (immediate win is best)
-        if ai_player.position[0] == ai_player.goal_row:
-            return 100000
-        
-        # Check if opponent can win next move (immediate loss is worst)
+        # Check terminal states
+        if current.position[0] == current.goal_row:
+            return 10000
         if opponent.position[0] == opponent.goal_row:
-            return -100000
+            return -10000
         
-        # Calculate shortest path lengths using BFS
-        ai_path = game_state.board.get_shortest_path_length(
-            ai_player.position, ai_player.goal_row
+        my_path = game_state.board.get_shortest_path_length(
+            current.position, current.goal_row
         )
         opp_path = game_state.board.get_shortest_path_length(
             opponent.position, opponent.goal_row
         )
         
-        # If AI is one move away from winning, heavily favor it
-        if ai_path == 1:
-            return 50000
-        
-        # If opponent is one move away, heavily penalize
-        if opp_path == 1:
-            return -50000
-        
-        # Primary heuristic: path length differential (most important in Quoridor)
-        # Prefer shorter path for AI, longer for opponent
-        path_differential = opp_path - ai_path
-        
-        # Secondary heuristic: wall advantage
-        # Having more walls is valuable for future blocking
-        wall_differential = ai_player.walls_remaining - opponent.walls_remaining
-        
-        # Tertiary heuristic: progress toward goal
-        # Closer to goal row is better
-        ai_distance = abs(ai_player.position[0] - ai_player.goal_row)
-        opp_distance = abs(opponent.position[0] - opponent.goal_row)
-        progress_differential = opp_distance - ai_distance
-        
-        # Combined evaluation with weights from Quoridor research
-        # Path differential is 10x more important than other factors
-        score = (path_differential * 1000 +      # Most critical factor
-                 wall_differential * 50 +         # Wall economy
-                 progress_differential * 100)     # Positional advantage
-        
-        return score
+        # Simple path differential - this is the key!
+        return opp_path - my_path
     
-    def _get_ordered_moves(self, game_state, player, opponent):
+    def _get_moves(self, game_state, player, opponent):
         """
-        Get moves ordered by likely quality for better alpha-beta pruning.
+        Get moves to consider.
         
-        Move ordering is critical - good moves first = more pruning.
-        Priority: 
-        1) Winning moves
-        2) Moves toward goal  
-        3) High-impact walls
-        
-        Args:
-            game_state: Current GameState object
-            player: Current Player
-            opponent: Opponent Player
-            
-        Returns:
-            List of (move_type, move_data) tuples, ordered by priority
+        Key optimization from SmartBrain:
+        1. Always consider the best pawn move (toward goal)
+        2. Only consider walls along players' shortest paths
         """
         moves = []
         
-        # Pawn moves (try these first)
-        valid_positions = game_state.board.get_valid_moves(player.position, opponent.position)
+        # Get valid pawn moves
+        valid_positions = game_state.board.get_valid_moves(
+            player.position, opponent.position
+        )
         
-        # Order pawn moves by actual path length to goal (best first)
-        pawn_moves = []
-        for pos in valid_positions:
-            # Check if this is a winning move
-            if pos[0] == player.goal_row:
-                # Winning move - highest priority
-                return [('move', pos)]
+        # Find the best pawn move (one that reduces path most)
+        if valid_positions:
+            # Check for immediate win
+            for pos in valid_positions:
+                if pos[0] == player.goal_row:
+                    return [('move', pos)]  # Winning move!
             
-            # Temporarily move to calculate actual path length
-            old_pos = player.position
-            player.position = pos
+            # Find move that gets us closest to goal
+            best_pos = None
+            best_path = float('inf')
             
-            path_length = game_state.board.get_shortest_path_length(
-                pos, player.goal_row
-            )
+            for pos in valid_positions:
+                path = game_state.board.get_shortest_path_length(
+                    pos, player.goal_row
+                )
+                if path < best_path:
+                    best_path = path
+                    best_pos = pos
             
-            player.position = old_pos
+            if best_pos:
+                moves.append(('move', best_pos))
             
-            pawn_moves.append((path_length, ('move', pos)))
+            # Also add other valid moves (for flexibility)
+            for pos in valid_positions:
+                if pos != best_pos:
+                    moves.append(('move', pos))
         
-        # Sort by path length (shorter path = higher priority)
-        pawn_moves.sort(key=lambda x: x[0])
-        moves.extend([move for _, move in pawn_moves])
+        # Strategic walls - but NOT in early game (first few moves should be racing)
+        # Count total moves made (approximated by walls placed)
+        total_walls_placed = (10 - player.walls_remaining) + (10 - opponent.walls_remaining)
+        early_game = total_walls_placed < 2
         
-        # Wall placements (if available and strategic)
-        if player.can_place_wall():
-            strategic_walls = self._get_strategic_walls(game_state, opponent)
+        # Calculate path situation
+        my_path = game_state.board.get_shortest_path_length(player.position, player.goal_row)
+        opp_path = game_state.board.get_shortest_path_length(opponent.position, opponent.goal_row)
+        
+        # Only consider walls if:
+        # 1. Not early game
+        # 2. We have walls to place
+        # 3. Opponent is getting close OR we're behind
+        should_consider_walls = (
+            not early_game and
+            player.can_place_wall() and
+            (opp_path <= 5 or my_path > opp_path)
+        )
+        
+        if should_consider_walls:
+            strategic_walls = self._get_path_blocking_walls(game_state, player, opponent)
             
-            # Limit wall candidates for performance but keep best ones
-            for wall in strategic_walls[:10]:  # Top 10 strategic walls
+            # Limit walls to prevent search explosion
+            for wall in strategic_walls[:4]:
                 moves.append(('wall', wall))
         
         return moves
     
-    def _get_strategic_walls(self, game_state, opponent):
+    def _get_path_blocking_walls(self, game_state, player, opponent):
         """
-        Get strategic wall positions using smart filtering.
+        Get walls that block opponent's path toward their goal.
         
-        Strategy from research:
-        - Place walls near opponent's current position
-        - Block opponent's likely paths to goal
-        - Focus on horizontal walls (more effective for blocking forward progress)
-        
-        Args:
-            game_state: Current GameState object
-            opponent: Opponent Player
-            
-        Returns:
-            List of Wall objects, ordered by strategic value
+        Key insight: Only place walls BETWEEN opponent and their goal,
+        never behind the opponent!
         """
         walls = []
-        opp_row, opp_col = opponent.position
         
-        # Get current opponent path length
+        opp_row, opp_col = opponent.position
+        opp_goal = opponent.goal_row
+        
+        # Direction opponent needs to travel
+        goal_direction = 1 if opp_goal > opp_row else -1
+        
         current_opp_path = game_state.board.get_shortest_path_length(
             opponent.position, opponent.goal_row
         )
+        current_my_path = game_state.board.get_shortest_path_length(
+            player.position, player.goal_row
+        )
         
-        # Focus on area near opponent (3x3 region around opponent)
-        for dr in range(-1, 2):
-            for dc in range(-1, 2):
-                row = opp_row + dr
-                col = opp_col + dc
+        # Only consider walls IN FRONT of opponent (between them and goal)
+        # Check rows from opponent toward their goal
+        if goal_direction == 1:  # Opponent going down (increasing row)
+            rows_to_check = range(opp_row, min(opp_row + 4, Board.BOARD_SIZE - 1))
+        else:  # Opponent going up (decreasing row)
+            rows_to_check = range(max(0, opp_row - 3), opp_row + 1)
+        
+        checked = set()
+        for row in rows_to_check:
+            for col in range(max(0, opp_col - 2), min(Board.BOARD_SIZE - 1, opp_col + 3)):
+                if (row, col) in checked:
+                    continue
+                checked.add((row, col))
                 
-                if 0 <= row < Board.BOARD_SIZE - 1 and 0 <= col < Board.BOARD_SIZE - 1:
-                    # Try horizontal walls first (typically more effective)
-                    for is_horizontal in [True, False]:
-                        wall = Wall(row, col, is_horizontal)
-                        
-                        if game_state.board.can_place_wall(wall, game_state.players):
-                            # Evaluate wall quality by path length increase
-                            game_state.board.walls.append(wall)
-                            
-                            new_opp_path = game_state.board.get_shortest_path_length(
-                                opponent.position, opponent.goal_row
-                            )
-                            
-                            increase = new_opp_path - current_opp_path
-                            
-                            game_state.board.walls.remove(wall)
-                            
-                            # Add wall with its effectiveness score
-                            walls.append((increase, wall))
-        
-        # Also check walls directly blocking opponent's progress toward goal
-        goal_direction = 1 if opponent.goal_row > opp_row else -1
-        
-        # Walls immediately ahead of opponent
-        for dc in range(-2, 3):
-            col = opp_col + dc
-            row = opp_row + goal_direction
-            
-            if 0 <= row < Board.BOARD_SIZE - 1 and 0 <= col < Board.BOARD_SIZE - 1:
-                wall = Wall(row, col, True)  # Horizontal wall ahead
-                
-                if game_state.board.can_place_wall(wall, game_state.players):
+                # Try horizontal walls first (better for blocking forward progress)
+                for is_horizontal in [True, False]:
+                    wall = Wall(row, col, is_horizontal)
+                    
+                    if not game_state.board.can_place_wall(wall, game_state.players):
+                        continue
+                    
+                    # Test the wall's effectiveness
                     game_state.board.walls.append(wall)
                     
                     new_opp_path = game_state.board.get_shortest_path_length(
                         opponent.position, opponent.goal_row
                     )
+                    new_my_path = game_state.board.get_shortest_path_length(
+                        player.position, player.goal_row
+                    )
                     
-                    increase = new_opp_path - current_opp_path
+                    game_state.board.walls.pop()
                     
-                    game_state.board.walls.remove(wall)
+                    # Calculate net benefit
+                    opp_increase = new_opp_path - current_opp_path
+                    my_increase = new_my_path - current_my_path
+                    net_benefit = opp_increase - my_increase
                     
-                    walls.append((increase, wall))
+                    # Only keep walls that actually slow down opponent more than us
+                    if net_benefit >= 1:
+                        walls.append((net_benefit, wall))
         
-        # Sort by effectiveness (highest increase first)
+        # Sort by effectiveness
         walls.sort(key=lambda x: x[0], reverse=True)
         
-        # Return just the wall objects, ordered by quality
-        return [wall for _, wall in walls]
+        return [w for _, w in walls]
+    
+    def _get_path_positions(self, game_state, player):
+        """Get positions along player's shortest path using BFS."""
+        from collections import deque
+        
+        start = player.position
+        goal_row = player.goal_row
+        
+        queue = deque([(start, [start])])
+        visited = {start}
+        
+        while queue:
+            pos, path = queue.popleft()
+            
+            if pos[0] == goal_row:
+                return path
+            
+            # Check all directions
+            for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                new_pos = (pos[0] + dr, pos[1] + dc)
+                
+                if new_pos in visited:
+                    continue
+                
+                if not (0 <= new_pos[0] < Board.BOARD_SIZE and 
+                        0 <= new_pos[1] < Board.BOARD_SIZE):
+                    continue
+                
+                if game_state.board.is_blocked_by_wall(pos, new_pos):
+                    continue
+                
+                visited.add(new_pos)
+                queue.append((new_pos, path + [new_pos]))
+        
+        return [start]  # Fallback
     
     def _save_state(self, game_state):
         """Save game state for rollback."""
@@ -355,7 +356,7 @@ class HardAI(BaseAI):
         }
     
     def _restore_state(self, game_state, saved_state):
-        """Restore game state from saved state."""
+        """Restore game state."""
         for i, player in enumerate(game_state.players):
             player.position = saved_state['player_positions'][i]
             player.walls_remaining = saved_state['walls_remaining'][i]
@@ -366,28 +367,34 @@ class HardAI(BaseAI):
         game_state.winner = saved_state['winner']
     
     def _apply_move(self, game_state, move_type, move_data):
-        """Apply a move to game state."""
-        current_player = game_state.get_current_player()
+        """Apply a move."""
+        current = game_state.get_current_player()
         
         if move_type == 'move':
-            current_player.position = move_data
-            if current_player.position[0] == current_player.goal_row:
+            current.position = move_data
+            if current.position[0] == current.goal_row:
                 game_state.game_over = True
-                game_state.winner = current_player
+                game_state.winner = current
         elif move_type == 'wall':
             game_state.board.walls.append(move_data)
-            current_player.walls_remaining -= 1
+            current.walls_remaining -= 1
         
         game_state.current_player_idx = 1 - game_state.current_player_idx
     
     def _get_fallback_move(self, game_state):
-        """Get fallback move if minimax fails."""
-        ai_player, opponent = self._get_player_and_opponent(game_state)
-        valid_moves = game_state.board.get_valid_moves(ai_player.position, opponent.position)
+        """Fallback: move toward goal."""
+        player = game_state.players[self.ai_player_idx]
+        opponent = game_state.players[1 - self.ai_player_idx]
         
-        if valid_moves:
-            # Choose move that advances toward goal
-            best_move = min(valid_moves, key=lambda pos: abs(pos[0] - ai_player.goal_row))
-            return ('move', best_move)
+        valid = game_state.board.get_valid_moves(
+            player.position, opponent.position
+        )
+        
+        if valid:
+            # Pick move closest to goal
+            best = min(valid, key=lambda p: game_state.board.get_shortest_path_length(
+                p, player.goal_row
+            ))
+            return ('move', best)
         
         return None
