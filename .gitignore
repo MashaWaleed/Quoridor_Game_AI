@@ -24,6 +24,11 @@ wheels/
 .installed.cfg
 *.egg
 
+# PyInstaller
+*.spec
+build/
+dist/
+
 # IDE
 .vscode/
 .idea/
@@ -38,3 +43,24 @@ Thumbs.db
 # Game saves
 saves/
 *.sav
+
+# Build scripts and documentation (not for remote repo)
+build_*.py
+build_all.sh
+BUILD_INSTRUCTIONS.md
+WINDOWS_BUILD.md
+RELEASE_BUILD_SUMMARY.md
+releases/
+.github/workflows/
+
+# LaTeX and documentation
+*.tex
+*.pdf
+*.aux
+*.log
+*.out
+
+# Text files except requirements.txt
+project_description.txt
+*.txt
+!requirements.txt
