@@ -3,10 +3,10 @@
 A complete implementation of the strategic board game Quoridor with GUI and intelligent AI opponents.
 
 ## Student codes
-| Name | Code |
-| Mohamed Walid Elsayed | 2100623 |
-| Youssef Osama Mohamed | 2100988 |
-| Abdelrahman Taha Mohamed | 2100464 |
+ Name | Code 
+ Mohamed Walid Elsayed | 2100623 
+ Youssef Osama Mohamed | 2100988 
+ Abdelrahman Taha Mohamed | 2100464 
 
 ## Game Description
 
