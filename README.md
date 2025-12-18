@@ -2,6 +2,12 @@
 
 A complete implementation of the strategic board game Quoridor with GUI and intelligent AI opponents.
 
+## Student codes
+|Name|Code|
+|Mohamed Walid Elsayed | 2100623|
+|Youssef Osama Mohamed | 2100988|
+|Abdelrahman Taha Mohamed | 2100464 |
+
 ## Game Description
 
 Quoridor is an award-winning abstract strategy board game where players race to reach the opposite side of the board while strategically placing walls to block their opponents. The game combines simple rules with deep strategic gameplay.
